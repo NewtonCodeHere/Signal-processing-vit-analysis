@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aviation Speech Processing – Interactive Receiver Simulation & SER Platform</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈</text></svg>">
+</head>
+<body>
+
+  <!-- ==============================================================================
+       APPLE iOS / macOS SIDEBAR
+       ============================================================================== -->
+  <aside class="sidebar" id="sidebar">
+    <!-- Functional macOS Traffic Light Dots -->
+    <div class="window-dots">
+      <span class="dot dot-red" id="dot-red" title="Reset Simulation Parameters (Factory Defaults)"></span>
+      <span class="dot dot-yellow" id="dot-yellow" title="Collapse / Expand Sidebar (Mini Mode)"></span>
+      <span class="dot dot-green" id="dot-green" title="Toggle Native Fullscreen Mode"></span>
+    </div>
+
+    <div class="sidebar-header">
+      <span class="sidebar-header-title">Navigation</span>
+    </div>
+
+    <!-- Navigation List (Matching Apple iOS Rounded Pill Style) -->
+    <nav class="nav-list">
+      <a class="nav-item active" data-tab="overview">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="nav-text">Overview</span>
+      </a>
+
+      <a class="nav-item" data-tab="receiver">
+        <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        <span class="nav-text">Receiver Chain</span>
+      </a>
+
+      <a class="nav-item" data-tab="simulation">
+        <svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+        <span class="nav-text">Simulation Lab</span>
+      </a>
+
+      <a class="nav-item" data-tab="characterization">
+        <svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 14l4-4 4 4 5-6"/></svg>
+        <span class="nav-text">Characterization</span>
+      </a>
+
+      <a class="nav-item" data-tab="audio">
+        <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+        <span class="nav-text">Audio Analysis</span>
+      </a>
+
+      <a class="nav-item" data-tab="speech">
+        <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+        <span class="nav-text">Speech DSP</span>
+      </a>
+
+      <a class="nav-item" data-tab="emotion">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
+        <span class="nav-text">Emotion AI</span>
+      </a>
+
+      <a class="nav-item" data-tab="reports">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span class="nav-text">Results & Report</span>
+      </a>
+    </nav>
+
+    <!-- Sidebar Footer with Theme Toggle -->
+    <div class="sidebar-footer">
+      <button class="theme-toggle-btn" id="theme-toggle">
+        <span id="theme-icon">☀️</span>
+        <span class="sidebar-footer-text" id="theme-label">Light Mode</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ==============================================================================
+       MAIN WORKSPACE AREA
+       ============================================================================== -->
+  <main class="main-wrapper">
+
+    <!-- Sticky Top Header -->
+    <header class="top-header">
+      <div class="header-badges">
+        <span class="badge"><span class="badge-dot"></span> VHF Airband: 118–137 MHz</span>
+        <span class="badge">AM DSB-FC</span>
+        <span class="badge">Speech: 16.0 kHz</span>
+        <span class="badge" style="color: var(--accent-orange);" id="badge-emotion">SER: Ready</span>
+      </div>
+
+      <!-- Real-Time Audio Dock -->
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <audio controls class="audio-stream-player" title="Real-Time Demodulated Receiver Audio Monitor"></audio>
+        <a href="/api/export/report" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">⬇ Report</a>
+      </div>
+    </header>
+
+    <div class="page-container">
+
+      <!-- ========================================================================
+           PAGE 1: PROJECT OVERVIEW (MATCHING "OUR SERVICE TIERS" TEMPLATE)
+           ======================================================================== -->
+      <div class="page-view" id="page-overview">
+        <div class="section-header">
+          <h1 class="hero-title">Aviation Voice <span class="gradient-text">Intelligence</span></h1>
+          <p class="hero-subtitle">
+            Real-Time Aviation Speech Dataset Acquisition and Speech Emotion Recognition Using Pilot–ATC VHF Communication.
+            Department of ECE, Thiagarajar College of Engineering, Madurai | Anna University.
+          </p>
+        </div>
+
+        <!-- Service Tiers Grid (Image 3 Template) -->
+        <div class="tiers-grid">
+          <!-- Tier 1: Aircraft Transmitter -->
+          <div class="tier-card">
+            <div>
+              <h3 class="tier-card-title">Aircraft Transmitter</h3>
+              <p class="tier-card-description">
+                Cockpit microphone converts speech into electrical signals, conditioned by aircraft audio systems and amplitude-modulated (AM DSB-FC) onto VHF carriers between 118.000 and 136.975 MHz.
+              </p>
+            </div>
+            <div class="kpi-label">ICAO Annex 10 Voice Standard</div>
+          </div>
+
+          <!-- Tier 2: Airband Channel -->
+          <div class="tier-card">
+            <div>
+              <h3 class="tier-card-title">VHF Radio Channel</h3>
+              <p class="tier-card-description">
+                Models free-space electromagnetic propagation, Friis line-of-sight path loss, and Additive White Gaussian Noise (AWGN) capturing operational radio channel degradation.
+              </p>
+            </div>
+            <div class="kpi-label">25 kHz / 8.33 kHz Channelization</div>
+          </div>
+
+          <!-- Tier 3: Ground Receiver (Featured "Elite" Style Card with Glowing Fluid Art) -->
+          <div class="tier-card featured">
+            <div class="featured-art"></div>
+            <div>
+              <h3 class="tier-card-title">Ground Receiver</h3>
+              <p class="tier-card-description">
+                Our completed physical receiver module: Receiving Antenna ➔ RF Bandpass Filter ➔ Low Noise Amplifier (LNA) ➔ Channel Tuning ➔ AM Demodulator ➔ Voice Conditioning ➔ 16-bit ADC Digitizer.
+              </p>
+            </div>
+            <a onclick="switchTab('simulation')" class="btn btn-primary" style="align-self: flex-start;">Open Simulation Lab ➔</a>
+          </div>
+        </div>
+
+        <!-- Primary Architecture Reference: Interactive Animated Vector Framework (Figure 4) -->
+        <div class="framework-container">
+          <div class="framework-header-row">
+            <div>
+              <div class="framework-tag-row">
+                <span class="badge" style="background: rgba(14, 165, 233, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+                  ICAO Annex 10 &amp; RTCA DO-214 Architecture
+                </span>
+                <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);">
+                  Live Signal Flow Active
+                </span>
+              </div>
+              <h2 class="framework-main-title">PILOT – ATC VHF RADIO COMMUNICATION (OVERALL FLOW)</h2>
+              <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
+                Interactive hardware-to-AI signal chain. Click on any receiver stage to probe its real-time oscilloscope trace.
+              </p>
+            </div>
+            <div class="framework-live-badge">
+              <span class="pulse-indicator"></span>
+              <span>CARRIER: 118–137 MHz AM DSB-FC</span>
+            </div>
+          </div>
+
+          <!-- Section 1: Existing Aircraft System (Transmitter Side) -->
+          <div class="subsystem-block tx-block">
+            <div class="subsystem-tag blue">Existing Aircraft System (Transmitter Side)</div>
+            <div class="chain-flex">
+              <div class="chain-node" title="Acoustic Voice Command">
+                <div class="node-badge">1</div>
+                <div class="chain-node-icon" style="background: rgba(14, 165, 233, 0.15); color: #38bdf8;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <div class="chain-node-title">Pilot Speaks</div>
+                <div class="chain-node-sub">Acoustic Speech</div>
+              </div>
+
+              <div class="chain-arrow-animated">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="Dynamic / Electret Transducer">
+                <div class="node-badge">2</div>
+                <div class="chain-node-icon" style="background: rgba(14, 165, 233, 0.15); color: #38bdf8;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </div>
+                <div class="chain-node-title">Cockpit Mic</div>
+                <div class="chain-node-sub">Acoustic Transducer</div>
+              </div>
+
+              <div class="chain-arrow-animated">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="Preamp, Pre-emphasis & Audio Conditioning">
+                <div class="node-badge">3</div>
+                <div class="chain-node-icon" style="background: rgba(14, 165, 233, 0.15); color: #38bdf8;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                </div>
+                <div class="chain-node-title">Aircraft Audio</div>
+                <div class="chain-node-sub">Processing + Amp</div>
+              </div>
+
+              <div class="chain-arrow-animated">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="Double Sideband Full Carrier Modulator">
+                <div class="node-badge">4</div>
+                <div class="chain-node-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12c2.5-6 5.5-6 8 0s5.5 6 8 0 5.5-6 8 0"/></svg>
+                </div>
+                <div class="chain-node-title">AM Modulator</div>
+                <div class="chain-node-sub">DSB-FC (m ≈ 0.75)</div>
+              </div>
+
+              <div class="chain-arrow-animated">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="VHF Power Amplifier & RF Exciter">
+                <div class="node-badge">5</div>
+                <div class="chain-node-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+                </div>
+                <div class="chain-node-title">VHF Transmitter</div>
+                <div class="chain-node-sub">118–136.975 MHz</div>
+              </div>
+
+              <div class="chain-arrow-animated">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node highlight-tx" title="Aircraft Monopole / Blade Antenna">
+                <div class="node-badge">6</div>
+                <div class="chain-node-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z"/></svg>
+                </div>
+                <div class="chain-node-title">Aircraft Antenna</div>
+                <div class="chain-node-sub">Airborne RF Radiator</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Wireless RF Propagation Link (Animated Bridge) -->
+          <div class="channel-bridge-advanced">
+            <div class="rf-travel-lane left">
+              <span class="rf-photon"></span>
+              <span class="rf-photon delay-1"></span>
+              <span class="rf-photon delay-2"></span>
+            </div>
+
+            <div class="channel-pill-advanced">
+              <span class="channel-pill-icon">⚡</span>
+              <div>
+                <span class="channel-pill-title">VHF AIRBAND PROPAGATION CHANNEL (118.000 – 136.975 MHz)</span>
+                <span class="channel-pill-sub">Free-Space Line-of-Sight Path Loss (Friis) &bull; AWGN Thermal Noise &bull; 25 kHz / 8.33 kHz Channels</span>
+              </div>
+              <span class="channel-pill-icon">⚡</span>
+            </div>
+
+            <div class="rf-travel-lane right">
+              <span class="rf-photon"></span>
+              <span class="rf-photon delay-1"></span>
+              <span class="rf-photon delay-2"></span>
+            </div>
+          </div>
+
+          <!-- Section 3: Our Proposed Receiving System (Data Acquisition) -->
+          <div class="subsystem-block rx-block">
+            <div class="subsystem-tag green">Our Proposed Receiving System (Data Acquisition &amp; SER Platform)</div>
+
+            <!-- Row 1: Hardware RF & Demodulation Chain -->
+            <div class="chain-row-label">Hardware Stage Operations (RF Front-End, Demodulator &amp; ADC Digitizer)</div>
+            <div class="chain-flex" style="margin-bottom: 24px;">
+              <div class="chain-node interactive-probe" onclick="selectStageFromOverview('stage1')" title="Click to Probe Stage 1">
+                <div class="node-badge rx">1</div>
+                <div class="chain-node-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H7M19 9H5M21 13H3"/></svg>
+                </div>
+                <div class="chain-node-title">Receiving Antenna</div>
+                <div class="chain-node-sub">VHF Intercept (50Ω)</div>
+                <div class="node-probe-hint">Probe Stage ➔</div>
+              </div>
+
+              <div class="chain-arrow-animated green">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node interactive-probe" onclick="selectStageFromOverview('stage2')" title="Click to Probe Stage 2/3">
+                <div class="node-badge rx">2</div>
+                <div class="chain-node-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 12h10M7 8h5M7 16h8"/></svg>
+                </div>
+                <div class="chain-node-title">RF Front-End</div>
+                <div class="chain-node-sub">BP Filter + LNA (20dB)</div>
+                <div class="node-probe-hint">Probe Stage ➔</div>
+              </div>
+
+              <div class="chain-arrow-animated green">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node interactive-probe" onclick="selectStageFromOverview('stage4')" title="Click to Probe Stage 4">
+                <div class="node-badge rx">3</div>
+                <div class="chain-node-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="12" x2="16" y2="8"/></svg>
+                </div>
+                <div class="chain-node-title">Tuning / Selection</div>
+                <div class="chain-node-sub">118–136.975 MHz</div>
+                <div class="node-probe-hint">Probe Stage ➔</div>
+              </div>
+
+              <div class="chain-arrow-animated green">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node interactive-probe" onclick="selectStageFromOverview('stage5')" title="Click to Probe Stage 5">
+                <div class="node-badge rx">4</div>
+                <div class="chain-node-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 4 18 12 6 20 6 4"/><line x1="18" y1="4" x2="18" y2="20"/></svg>
+                </div>
+                <div class="chain-node-title">AM Demodulator</div>
+                <div class="chain-node-sub">Diode RC Envelope</div>
+                <div class="node-probe-hint">Probe Stage ➔</div>
+              </div>
+
+              <div class="chain-arrow-animated green">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node interactive-probe" onclick="selectStageFromOverview('stage6')" title="Click to Probe Stage 6">
+                <div class="node-badge rx">5</div>
+                <div class="chain-node-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                </div>
+                <div class="chain-node-title">Audio Processing</div>
+                <div class="chain-node-sub">300–3400 Hz + AGC</div>
+                <div class="node-probe-hint">Probe Stage ➔</div>
+              </div>
+
+              <div class="chain-arrow-animated green">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node interactive-probe" onclick="selectStageFromOverview('stage7')" title="Click to Probe Stage 7">
+                <div class="node-badge rx">6</div>
+                <div class="chain-node-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                </div>
+                <div class="chain-node-title">ADC Converter</div>
+                <div class="chain-node-sub">16-bit PCM Linear</div>
+                <div class="node-probe-hint">Probe Stage ➔</div>
+              </div>
+            </div>
+
+            <!-- Inter-row Bus Transfer Indicator -->
+            <div class="inter-row-connector">
+              <div class="connector-line"></div>
+              <div class="connector-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+                <span>Digitized 16.0 kHz Linear PCM Stream Ingestion</span>
+              </div>
+              <div class="connector-line"></div>
+            </div>
+
+            <!-- Row 2: Digital Audio, Dataset Curation & Deep Learning SER -->
+            <div class="chain-row-label">Downstream Intelligence (WAV Ingestion, Aviation Dataset &amp; Emotion AI)</div>
+            <div class="chain-flex">
+              <div class="chain-node interactive-probe" onclick="selectStageFromOverview('stage8')" title="Click to Probe Stage 8">
+                <div class="node-badge purple">7</div>
+                <div class="chain-node-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                </div>
+                <div class="chain-node-title">Digital Audio</div>
+                <div class="chain-node-sub">16.0 kHz WAV</div>
+                <div class="node-probe-hint">Probe Stage ➔</div>
+              </div>
+
+              <div class="chain-arrow-animated purple">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="Energy & Spectral Flux Voice Activity Detection">
+                <div class="node-badge purple">8</div>
+                <div class="chain-node-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                </div>
+                <div class="chain-node-title">Segmentation</div>
+                <div class="chain-node-sub">VAD &amp; 4.0s Window</div>
+              </div>
+
+              <div class="chain-arrow-animated purple">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="Time, Date, Channel, Call-Sign & SNR Tags">
+                <div class="node-badge purple">9</div>
+                <div class="chain-node-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                </div>
+                <div class="chain-node-title">Metadata Tagging</div>
+                <div class="chain-node-sub">Date, Time, Freq, SNR</div>
+              </div>
+
+              <div class="chain-arrow-animated purple">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="Curated Real-World Aviation Speech Corpus">
+                <div class="node-badge purple">10</div>
+                <div class="chain-node-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                </div>
+                <div class="chain-node-title">Aviation Dataset</div>
+                <div class="chain-node-sub">Corpus Storage</div>
+              </div>
+
+              <div class="chain-arrow-animated purple">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node" title="128-band Mel Spectrogram, MFCC, Pitch, Energy">
+                <div class="node-badge purple">11</div>
+                <div class="chain-node-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                </div>
+                <div class="chain-node-title">Feature Extraction</div>
+                <div class="chain-node-sub">128 Log-Mel + MFCC</div>
+              </div>
+
+              <div class="chain-arrow-animated purple">
+                <svg width="24" height="14" viewBox="0 0 24 14"><path d="M0 7h18m-5-5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              </div>
+
+              <div class="chain-node highlight-ai" onclick="switchTab('emotion')" title="Click to Open Emotion AI">
+                <div class="node-badge red">12</div>
+                <div class="chain-node-icon" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>
+                </div>
+                <div class="chain-node-title">Emotion AI (SER)</div>
+                <div class="chain-node-sub">CNN + Transformer</div>
+                <div class="node-probe-hint" style="color: #f87171;">Open SER ➔</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Summary Pillars (Figure 4 Architecture Reference Notes) -->
+          <div class="framework-takeaways-grid">
+            <div class="takeaway-card">
+              <div class="takeaway-icon">✈️</div>
+              <div class="takeaway-content">
+                <div class="takeaway-title">Cockpit Voice Modulation &amp; Radiation</div>
+                <div class="takeaway-desc">
+                  The pilot's voice is captured in the aircraft cockpit, conditioned, and modulated using Double Sideband Full Carrier AM (DSB-FC) onto VHF carriers between 118.000 and 136.975 MHz.
+                </div>
+              </div>
+            </div>
+
+            <div class="takeaway-card">
+              <div class="takeaway-icon">📡</div>
+              <div class="takeaway-content">
+                <div class="takeaway-title">Ground Intercept &amp; Demodulation</div>
+                <div class="takeaway-desc">
+                  Our custom receiver hardware intercepts the airband signal, suppresses out-of-band noise with LC filtering, amplifies through LNA, extracts audio via envelope detector, and digitizes to 16 kHz WAV.
+                </div>
+              </div>
+            </div>
+
+            <div class="takeaway-card">
+              <div class="takeaway-icon">🧠</div>
+              <div class="takeaway-content">
+                <div class="takeaway-title">Aviation Dataset &amp; Emotion AI</div>
+                <div class="takeaway-desc">
+                  Segmented transmissions are indexed into our real-time aviation corpus and classified across stress/calm/urgency states using CNN-BiLSTM and Vision Transformer architectures.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Academic Credentials Card -->
+        <div class="content-card">
+          <div class="card-heading">
+            <span>🏛 Academic Credentials &amp; Project Authorities</span>
+          </div>
+          <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
+            <b>Institution:</b> Thiagarajar College of Engineering, Madurai (Affiliated to Anna University)<br>
+            <b>Faculty Guide:</b> Dr. M.N. Suresh, Associate Professor, Department of ECE<br>
+            <b>Project Investigators:</b> Nishaanth R (2302917710621091), Hari Hara Sudhan C (2303917710621032), Prem Kumar P (2303917710621317)<br>
+            <b>Course Codes:</b> 22EC690 (Project II) &amp; 22EC790 (Project III)
+          </p>
+        </div>
+      </div>
+
+      <!-- ========================================================================
+           PAGE 2: RECEIVER OPERATION (STAGE-BY-STAGE CHAIN)
+           ======================================================================== -->
+      <div class="page-view" id="page-receiver" style="display: none;">
+        <div class="section-header">
+          <h1 class="hero-title">Receiver Stage <span class="gradient-text">Operations</span></h1>
+          <p class="hero-subtitle">
+            Probe and inspect electrical waveforms, frequency responses, and SNR transformations through each physical hardware module.
+          </p>
+        </div>
+
+        <div class="content-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="font-size: 15px; font-weight: 600;">Select Hardware Stage to Probe:</div>
+            <select id="stage-selector" onchange="renderReceiverTab()" style="min-width: 300px;">
+              <option value="stage1">Stage 1: RF Front-End Input</option>
+              <option value="stage2">Stage 2: RF Band-Pass Filter</option>
+              <option value="stage3">Stage 3: Low Noise Amplifier (LNA)</option>
+              <option value="stage4">Stage 4: Frequency Tuning &amp; Downconversion</option>
+              <option value="stage5" selected>Stage 5: AM Demodulator</option>
+              <option value="stage6">Stage 6: Audio Conditioning &amp; AGC</option>
+              <option value="stage7">Stage 7: Analog-to-Digital Converter (ADC)</option>
+              <option value="stage8">Stage 8: Digital Audio Output (WAV 16 kHz)</option>
+            </select>
+          </div>
+
+          <h3 id="stage-title" style="font-family: 'Outfit'; font-size: 24px; margin-bottom: 16px; color: var(--accent-orange);">Stage 5: AM Demodulator</h3>
+
+          <div class="canvas-wrapper" style="margin-bottom: 20px;">
+            <canvas id="canvas-stage-detail"></canvas>
+          </div>
+
+          <!-- Stage 8 Audio Player Dock -->
+          <div class="stage-audio-dock" id="stage-audio-dock" style="display: none; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 20px;">🎵</span>
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">16.0 kHz Reconstructed Voice Audio</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Standardized Aviation Speech Format</div>
+              </div>
+            </div>
+            <audio controls class="audio-stream-player" style="flex: 1; max-width: 380px;"></audio>
+            <a href="/api/audio/wav" download="demodulated_stage8_audio.wav" class="btn btn-primary" style="padding: 8px 16px; font-size: 12px;">⬇ Download WAV</a>
+          </div>
+
+          <div class="card-heading">Stage Diagnostics &amp; Measured Parameters</div>
+          <pre id="stage-diagnostics" style="background: var(--bg-primary); padding: 16px; border-radius: 14px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent-cyan); overflow-x: auto;"></pre>
+        </div>
+      </div>
+
+      <!-- ========================================================================
+           PAGE 3: SIMULATION LAB (INTERACTIVE SLIDERS & DYNAMIC CANVAS)
+           ======================================================================== -->
+      <div class="page-view" id="page-simulation" style="display: none;">
+        <div class="section-header">
+          <h1 class="hero-title">Receiver Simulation <span class="gradient-text">Lab</span></h1>
+          <p class="hero-subtitle">
+            Interactive digital twin testbench. Adjust parameters below to dynamically recalculate mathematical transformations across the receiver chain.
+          </p>
+        </div>
+
+        <!-- Real-Time KPI Cards (Service Tiers Style) -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Recovered Audio SNR</span>
+            <span class="kpi-value" id="kpi-snr" style="color: var(--accent-cyan);">-- dB</span>
+            <span class="kpi-sub">Fidelity relative to error</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Demod Correlation (ρ)</span>
+            <span class="kpi-value" id="kpi-corr" style="color: var(--accent-green);">--</span>
+            <span class="kpi-sub">1.0 = Ideal Reconstruction</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Demod MSE</span>
+            <span class="kpi-value" id="kpi-mse" style="color: var(--accent-purple);">--</span>
+            <span class="kpi-sub">Mean Squared Error</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">ADC Quant Step</span>
+            <span class="kpi-value" id="kpi-step" style="color: var(--accent-orange);">-- mV</span>
+            <span class="kpi-sub">Quantum LSB Voltage</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Empirical SQNR</span>
+            <span class="kpi-value" id="kpi-sqnr" style="color: #38bdf8;">-- dB</span>
+            <span class="kpi-sub">Theory: 6.02N + 1.76 dB</span>
+          </div>
+        </div>
+
+        <!-- Controls Form -->
+        <div class="content-card">
+          <div class="card-heading">
+            <span>⚙ Parameter Sliders &amp; Configuration Controls</span>
+            <button class="btn btn-secondary" onclick="fetchSimulation()">🔄 Recalculate</button>
+          </div>
+
+          <div class="control-grid">
+            <!-- Mod Index -->
+            <div class="control-group">
+              <label class="control-label">
+                <span>Modulation Index (m)</span>
+                <span class="control-value" id="val-mod-index">0.75</span>
+              </label>
+              <input type="range" id="sim-mod-index" min="0.0" max="1.5" step="0.05" value="0.75">
+            </div>
+
+            <!-- Channel SNR -->
+            <div class="control-group">
+              <label class="control-label">
+                <span>Channel Additive SNR</span>
+                <span class="control-value" id="val-snr">25 dB</span>
+              </label>
+              <input type="range" id="sim-snr" min="-10" max="45" step="1" value="25">
+            </div>
+
+            <!-- LNA Gain -->
+            <div class="control-group">
+              <label class="control-label">
+                <span>LNA Preamp Gain</span>
+                <span class="control-value" id="val-gain">20 dB</span>
+              </label>
+              <input type="range" id="sim-gain" min="0" max="35" step="1" value="20">
+            </div>
+
+            <!-- Tuning Error -->
+            <div class="control-group">
+              <label class="control-label">
+                <span>LO Tuning Drift</span>
+                <span class="control-value" id="val-tuning">0 Hz</span>
+              </label>
+              <input type="range" id="sim-tuning" min="-2500" max="2500" step="100" value="0">
+            </div>
+
+            <!-- Channel Frequency Preset -->
+            <div class="control-group">
+              <label class="control-label">VHF Channel Preset</label>
+              <select id="sim-channel">
+                <option value="121.500">121.500 MHz - Emergency Guard</option>
+                <option value="118.100">118.100 MHz - Tower (TWR)</option>
+                <option value="119.300">119.300 MHz - Approach (APP)</option>
+                <option value="121.900">121.900 MHz - Ground (GND)</option>
+                <option value="127.850">127.850 MHz - ATIS Broadcast</option>
+              </select>
+            </div>
+
+            <!-- ADC Resolution -->
+            <div class="control-group">
+              <label class="control-label">ADC Resolution Bit Depth</label>
+              <select id="sim-adc-bits">
+                <option value="8">8-bit (49.9 dB SQNR)</option>
+                <option value="10">10-bit (62.0 dB SQNR)</option>
+                <option value="12">12-bit (74.0 dB SQNR)</option>
+                <option value="16" selected>16-bit (98.1 dB SQNR)</option>
+                <option value="24">24-bit (146.2 dB SQNR)</option>
+              </select>
+            </div>
+
+            <!-- Audio Source -->
+            <div class="control-group">
+              <label class="control-label">Modulating Audio Source</label>
+              <select id="sim-sig-type">
+                <option value="synthetic_atc" selected>Synthetic Pilot-ATC Speech</option>
+                <option value="tone">Single Pure Tone (1 kHz)</option>
+                <option value="multitone">Multi-tone Harmonic Voice</option>
+              </select>
+            </div>
+
+            <!-- RF Bandwidth -->
+            <div class="control-group">
+              <label class="control-label">RF Front-End Bandwidth</label>
+              <select id="sim-rf-bw">
+                <option value="8.33">8.33 kHz (Narrowband Split)</option>
+                <option value="25.0" selected>25.0 kHz (Standard Airband)</option>
+                <option value="50.0">50.0 kHz (Wideband)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 24px; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+              <input type="checkbox" id="sim-agc" checked> Enable Automatic Gain Control (AGC)
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+              <input type="checkbox" id="sim-bpf" checked> Enable 300–3400 Hz Voice Filter
+            </label>
+          </div>
+        </div>
+
+        <!-- Real-Time Waveform Displays -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+          <div class="content-card">
+            <div class="card-heading">1. Transmitted AM Modulated RF Signal s(t)</div>
+            <div class="canvas-wrapper">
+              <canvas id="canvas-am-rf"></canvas>
+            </div>
+          </div>
+
+          <div class="content-card">
+            <div class="card-heading">2. RF Power Spectrum (Carrier + Sidebands)</div>
+            <div class="canvas-wrapper">
+              <canvas id="canvas-rf-spec"></canvas>
+            </div>
+          </div>
+
+          <div class="content-card">
+            <div class="card-heading">3. Demodulated Audio vs Original Voice Overlay</div>
+            <div class="canvas-wrapper">
+              <canvas id="canvas-demod-comp"></canvas>
+            </div>
+          </div>
+
+          <div class="content-card">
+            <div class="card-heading">4. ADC Quantization Staircase (Analog vs Steps)</div>
+            <div class="canvas-wrapper">
+              <canvas id="canvas-adc-steps"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================================
+           PAGE 4: CHARACTERIZATION SWEEPS (BODE, GAIN, NOISE, THD, ADC)
+           ======================================================================== -->
+      <div class="page-view" id="page-characterization" style="display: none;">
+        <div class="section-header">
+          <h1 class="hero-title">Receiver <span class="gradient-text">Characterization</span></h1>
+          <p class="hero-subtitle">
+            Automated mathematical sweeps measuring filter selectivity, 1 dB compression point, noise sensitivity knee, and quantization SQNR.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
+          <button class="btn btn-secondary" onclick="loadCharacterization('bode')">Bode Frequency Response</button>
+          <button class="btn btn-secondary" onclick="loadCharacterization('gain')">Gain &amp; 1dB Compression</button>
+          <button class="btn btn-secondary" onclick="loadCharacterization('noise')">Noise Figure &amp; Threshold Knee</button>
+          <button class="btn btn-secondary" onclick="loadCharacterization('modulation')">Modulation Index vs THD</button>
+          <button class="btn btn-secondary" onclick="loadCharacterization('adc')">ADC SQNR vs 6.02N+1.76</button>
+        </div>
+
+        <div class="content-card">
+          <div class="card-heading">Parametric Sweep Characteristic Curve</div>
+          <div class="canvas-wrapper" style="height: 320px; margin-bottom: 20px;">
+            <canvas id="canvas-characterization" style="height: 290px;"></canvas>
+          </div>
+
+          <div style="display: flex; gap: 36px;">
+            <div>
+              <div class="kpi-label" id="char-lbl-1">Key Metric 1</div>
+              <div class="kpi-value" id="char-kpi-1" style="font-size: 28px; color: var(--accent-orange);">--</div>
+            </div>
+            <div>
+              <div class="kpi-label" id="char-lbl-2">Key Metric 2</div>
+              <div class="kpi-value" id="char-kpi-2" style="font-size: 28px; color: var(--accent-cyan);">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================================
+           PAGE 5: AUDIO ANALYSIS
+           ======================================================================== -->
+      <div class="page-view" id="page-audio" style="display: none;">
+        <div class="section-header">
+          <h1 class="hero-title">Audio <span class="gradient-text">Analysis</span></h1>
+          <p class="hero-subtitle">
+            Time-domain oscilloscope, power spectra, and speech acoustic dynamics of the recovered civil aviation audio.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="switchTab('emotion'); setAudioInputMode('mic');">
+              <span>🎙️</span> Speak Live (Mic Input)
+            </button>
+            <button class="btn btn-secondary" onclick="switchTab('emotion'); setAudioInputMode('file');">
+              <span>📁</span> Upload Audio File
+            </button>
+          </div>
+          <div id="audio-analysis-status" style="font-size: 13px; font-weight: 600; color: var(--accent-cyan);">
+            ● Standard ICAO 16.0 kHz Voice Stream Active
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div class="card-heading">Demodulated Acoustic Waveform (16.0 kHz)</div>
+          <div class="canvas-wrapper" style="margin-bottom: 20px;">
+            <canvas id="canvas-audio-full"></canvas>
+          </div>
+          <div class="audio-dock">
+            <audio controls class="audio-stream-player" style="flex: 1; margin-right: 20px;"></audio>
+            <a href="/api/audio/wav" download="demodulated_audio.wav" class="btn btn-primary">⬇ Download WAV</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================================
+           PAGE 6: SPEECH PROCESSING PIPELINE
+           ======================================================================== -->
+      <div class="page-view" id="page-speech" style="display: none;">
+        <div class="section-header">
+          <h1 class="hero-title">Speech <span class="gradient-text">Processing</span></h1>
+          <p class="hero-subtitle">
+            16 kHz conditioning, pre-emphasis (α=0.97), 4-second fixed windowing (64,000 samples), and Voice Activity Detection (VAD).
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="switchTab('emotion'); setAudioInputMode('mic');">
+              <span>🎙️</span> Speak Live (Mic Input)
+            </button>
+            <button class="btn btn-secondary" onclick="switchTab('emotion'); setAudioInputMode('file');">
+              <span>📁</span> Upload Audio File
+            </button>
+          </div>
+          <div id="speech-processing-status" style="font-size: 13px; font-weight: 600; color: var(--accent-green);">
+            ● Pre-Emphasis α=0.97 &bull; 4.0s Bounded VAD Window
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div class="card-heading">4-Second Fixed Window &amp; Voice Activity Detection (VAD)</div>
+          <div class="canvas-wrapper" style="margin-bottom: 20px;">
+            <canvas id="canvas-vad-view"></canvas>
+          </div>
+          <p style="font-size: 14px; color: var(--text-secondary);">
+            Standardized windowing matching Project I &amp; II: exactly 64,000 samples at 16 kHz with zero padding and energy threshold VAD bounding boxes.
+          </p>
+        </div>
+      </div>
+
+      <!-- ========================================================================
+           PAGE 7: EMOTION AI (SER INFERENCE)
+           ======================================================================== -->
+      <div class="page-view" id="page-emotion" style="display: none;">
+        <div class="section-header">
+          <h1 class="hero-title">Speech Emotion <span class="gradient-text">Recognition</span></h1>
+          <p class="hero-subtitle">
+            Deep learning neural classification using Model 6 (CNN-BiLSTM, 87% test accuracy) and Model 4 (Vertically Patched ViT).
+          </p>
+        </div>
+
+        <!-- Real-Time Speech & Audio Input Console (File Uploader + Live Mic + Transcription) -->
+        <div class="audio-input-console">
+          <div class="console-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">🎙️</span>
+                <span style="font-family: 'Outfit'; font-size: 17px; font-weight: 700;">Aviation Speech Input &amp; Real-Time Analysis</span>
+                <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">Interactive</span>
+              </div>
+              <p style="font-size: 12.5px; color: var(--text-secondary); margin-top: 4px;">
+                Upload an audio file or speak live into your microphone to analyze acoustics, VAD, transcription, and emotion recognition in real time.
+              </p>
+            </div>
+            <div class="console-tabs">
+              <button class="console-tab-btn active" id="tab-btn-mic" onclick="setAudioInputMode('mic')">
+                <span>🎙️</span> Live Speaking
+              </button>
+              <button class="console-tab-btn" id="tab-btn-file" onclick="setAudioInputMode('file')">
+                <span>📁</span> Upload Audio File
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode 1: Live Speaking (Microphone) -->
+          <div id="panel-mic-mode" class="live-mic-console">
+            <div class="mic-action-row">
+              <button id="btn-record-mic" class="btn-mic-record" onclick="toggleMicrophoneRecording()" title="Click to start live speaking">
+                <span id="mic-icon">🎙️</span>
+              </button>
+              <div style="text-align: left;">
+                <div class="mic-status-label" id="mic-status-text">Click microphone to speak in real time</div>
+                <div class="mic-timer" id="mic-timer-text">Ready • 16.0 kHz Acoustic Intercept</div>
+              </div>
+            </div>
+
+            <!-- Real-time Speech-to-Text Transcription Box -->
+            <div class="transcription-box">
+              <div class="transcription-header">
+                <div class="transcription-badge">
+                  <span>⚡</span> Live Speech-to-Text Transcription (ATC Voice Channel)
+                </div>
+                <span id="transcription-status-badge" style="font-size: 11px; color: var(--text-muted);">Listening for speech...</span>
+              </div>
+              <div id="live-transcription-text" class="transcription-text placeholder">
+                "Mayday, Mayday, Air India 101, engine malfunction at flight level 320, requesting immediate descent..."
+              </div>
+            </div>
+          </div>
+
+          <!-- Mode 2: File Uploader -->
+          <div id="panel-file-mode" style="display: none;">
+            <div class="file-drop-zone" id="file-drop-area" onclick="document.getElementById('audio-file-input').click()">
+              <input type="file" id="audio-file-input" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" style="display: none;" onchange="handleAudioFileUpload(event)">
+              <div class="file-drop-icon">📤</div>
+              <div class="file-drop-title">Drop your speech audio file here, or browse</div>
+              <div class="file-drop-sub">Supported formats: WAV (16 kHz recommended), MP3, OGG, FLAC &bull; Automatic 16 kHz resample &amp; VAD</div>
+              <div id="file-upload-status" style="margin-top: 10px; font-weight: 600; font-size: 13px; color: var(--accent-orange);"></div>
+            </div>
+          </div>
+
+          <!-- Preset Pilot-ATC Communication Audio Prompts -->
+          <div style="margin-top: 16px; border-top: 1px solid var(--border-subtle); padding-top: 14px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;">
+              Quick Aviation Radio Presets:
+            </div>
+            <div class="preset-sample-chips">
+              <div class="sample-chip" onclick="simulatePresetSpeech('mayday')">
+                <span>🚨</span> <b>Emergency Mayday</b> (High Stress / Fearful)
+              </div>
+              <div class="sample-chip" onclick="simulatePresetSpeech('approach')">
+                <span>🛬</span> <b>ILS Runway Approach</b> (Calm / Focused)
+              </div>
+              <div class="sample-chip" onclick="simulatePresetSpeech('goaround')">
+                <span>⚠️</span> <b>Windshear Go-Around</b> (Urgent / High Arousal)
+              </div>
+              <div class="sample-chip" onclick="simulatePresetSpeech('clearance')">
+                <span>📋</span> <b>Routine Taxi Clearance</b> (Neutral / Routine)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div style="font-size: 15px; font-weight: 600;">Active Neural Architecture:</div>
+            <select id="ser-model-select" onchange="renderEmotionTab()" style="min-width: 320px;">
+              <option value="model_6_cnn_bilstm" selected>Model 6: CNN-BiLSTM (87% Accuracy Benchmark)</option>
+              <option value="model_4_vit">Model 4: Vertically Patched ViT (Project II)</option>
+            </select>
+          </div>
+
+          <div class="kpi-grid" style="margin-bottom: 24px;">
+            <div class="kpi-card" style="border-left: 5px solid #22c55e;">
+              <span class="kpi-label">Dominant Emotion</span>
+              <span class="kpi-value" id="ser-emotion-badge" style="color: #22c55e;">--</span>
+            </div>
+            <div class="kpi-card" style="border-left: 5px solid #06b6d4;">
+              <span class="kpi-label">Confidence Score</span>
+              <span class="kpi-value" id="ser-confidence-gauge" style="color: #06b6d4;">--%</span>
+            </div>
+            <div class="kpi-card" style="border-left: 5px solid #ff9500;">
+              <span class="kpi-label">Provenance</span>
+              <span class="kpi-value" id="ser-inference-mode" style="font-size: 16px; color: #ff9500;">--</span>
+            </div>
+          </div>
+
+          <div class="card-heading">8-Class Emotion Probability Distribution</div>
+          <div id="emotion-bars-container" style="margin-top: 14px;"></div>
+        </div>
+      </div>
+
+      <!-- ========================================================================
+           PAGE 8: RESULTS & REPORT (COMPARATIVE ANALYSIS & EXPORT)
+           ======================================================================== -->
+      <div class="page-view" id="page-reports" style="display: none;">
+        <div class="section-header">
+          <h1 class="hero-title">Results &amp; <span class="gradient-text">Report</span></h1>
+          <p class="hero-subtitle">
+            Side-by-side comparative analysis (Scenario A vs B), complete KPI measurement table, and downloads for project review.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 14px; margin-bottom: 24px;">
+          <button class="btn btn-primary" onclick="saveScenarioA()">💾 Save Current as Scenario A</button>
+          <a href="/api/export/csv" class="btn btn-secondary">⬇ Download CSV Data</a>
+          <a href="/api/export/report" class="btn btn-secondary">📄 Export Markdown Report</a>
+        </div>
+
+        <div class="content-card">
+          <div class="card-heading">Comparative Analysis: Scenario A (Baseline) vs Scenario B (Current)</div>
+          <div class="table-container" id="comparative-container">
+            <p style="color: var(--text-muted); font-size: 14px;">Loading comparison data...</p>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <div class="card-heading">Comprehensive Receiver Characterization Table</div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Value</th>
+                  <th>Unit</th>
+                  <th>Category</th>
+                  <th>Data Source</th>
+                </tr>
+              </thead>
+              <tbody id="report-summary-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
