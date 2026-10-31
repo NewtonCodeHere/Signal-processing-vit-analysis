@@ -20,6 +20,29 @@
       <span class="dot dot-green" id="dot-green" title="Toggle Native Fullscreen Mode"></span>
     </div>
 
+    <!-- ==========================================
+         MODE A & MODE B OPERATIONAL SWITCHER
+         ========================================== -->
+    <div class="sidebar-mode-selector">
+      <div class="sidebar-header-title">Operational Mode</div>
+      <div class="mode-toggle-group">
+        <button class="mode-pill-btn active" id="btn-mode-a" onclick="setSystemMode('A')" title="Mode A: Pure Software Simulation & 8-Stage Digital Twin">
+          <span class="mode-indicator dot-a"></span>
+          <div class="mode-label-group">
+            <span class="mode-title">Mode A</span>
+            <span class="mode-caption">Digital Twin</span>
+          </div>
+        </button>
+        <button class="mode-pill-btn" id="btn-mode-b" onclick="setSystemMode('B')" title="Mode B: Physical Hardware Input & STM32/ESP32 ADC Ingest">
+          <span class="mode-indicator dot-b"></span>
+          <div class="mode-label-group">
+            <span class="mode-title">Mode B</span>
+            <span class="mode-caption">Hardware Ingest</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
     <div class="sidebar-header">
       <span class="sidebar-header-title">Navigation</span>
     </div>
@@ -84,6 +107,9 @@
     <!-- Sticky Top Header -->
     <header class="top-header">
       <div class="header-badges">
+        <span class="badge" id="badge-system-mode" style="border-color: rgba(6, 182, 212, 0.4); background: rgba(6, 182, 212, 0.12); color: #06b6d4; font-weight: 700;">
+          <span class="badge-dot" style="background: #06b6d4; box-shadow: 0 0 8px #06b6d4;"></span> Mode A: Digital Twin
+        </span>
         <span class="badge"><span class="badge-dot"></span> VHF Airband: 118–137 MHz</span>
         <span class="badge">AM DSB-FC</span>
         <span class="badge">Speech: 16.0 kHz</span>
@@ -511,6 +537,69 @@
           <p class="hero-subtitle">
             Probe and inspect electrical waveforms, frequency responses, and SNR transformations through each physical hardware module.
           </p>
+        </div>
+
+        <!-- Mode B Hardware Acquisition Interface Card -->
+        <div class="content-card hardware-card" id="card-hardware-dock" style="margin-bottom: 24px; border-left: 4px solid var(--accent-orange);">
+          <div class="hardware-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">⚡</span>
+              <div>
+                <h3 style="font-family: 'Outfit'; font-size: 18px; font-weight: 700; color: var(--accent-orange); margin: 0;">Mode B: Physical Hardware Receiver &amp; Microcontroller ADC Bridge</h3>
+                <p style="font-size: 12.5px; color: var(--text-secondary); margin: 2px 0 0 0;">Direct UART 16-bit ADC Streaming (STM32/ESP32) &amp; Sound Card Line-In Driver</p>
+              </div>
+            </div>
+            <span class="badge" id="hw-status-badge" style="background: rgba(255, 149, 0, 0.15); color: #ff9500; font-weight: 700; border-color: rgba(255, 149, 0, 0.3);">Hardware Bridge Ready</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px;">
+            <div class="input-group">
+              <label for="hw-source-select" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">Input Interface Source</label>
+              <select id="hw-source-select" onchange="updateHardwareInterfaceUI()" style="width: 100%;">
+                <option value="serial" selected>Serial UART ADC (STM32 / ESP32)</option>
+                <option value="soundcard">Sound Card Line-In (LM386 Direct)</option>
+              </select>
+            </div>
+
+            <div class="input-group" id="group-hw-port">
+              <label for="hw-port-select" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">Device / COM Port</label>
+              <select id="hw-port-select" style="width: 100%;">
+                <option value="COM3 (Virtual Hardware Bridge - STM32 ADC)" selected>COM3 (Virtual Hardware Bridge - STM32 ADC)</option>
+              </select>
+            </div>
+
+            <div class="input-group" id="group-hw-baud">
+              <label for="hw-baud-select" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">Baud Rate</label>
+              <select id="hw-baud-select" style="width: 100%;">
+                <option value="115200" selected>115,200 baud (Standard UART)</option>
+                <option value="921600">921,600 baud (High-Speed DMA ADC)</option>
+                <option value="460800">460,800 baud</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label for="hw-duration-select" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">Capture Block Duration</label>
+              <select id="hw-duration-select" style="width: 100%;">
+                <option value="2.0">2.0s (32,000 Samples)</option>
+                <option value="4.0" selected>4.0s (64,000 Samples - VAD Window)</option>
+                <option value="8.0">8.0s (128,000 Samples)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button class="btn btn-primary" id="btn-hw-capture" onclick="triggerHardwareCapture()" style="background: linear-gradient(135deg, #ff9500, #ff5f56); border: none;">
+                <span>⚡</span> Ingest Hardware ADC Stream
+              </button>
+              <button class="btn btn-secondary" onclick="refreshHardwareDevices()">
+                <span>🔄</span> Refresh Ports
+              </button>
+            </div>
+            <div id="hw-telemetry-text" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent-cyan);">
+              UART Sync Header: 0xAA 0x55 &bull; 16-bit Linear PCM @ 16.0 kHz
+            </div>
+          </div>
         </div>
 
         <div class="content-card">

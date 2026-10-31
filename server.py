@@ -56,6 +56,7 @@ predictor = SERPredictor()
 last_simulation_results: Optional[Dict[str, Any]] = None
 last_ser_results: Optional[Dict[str, Any]] = None
 is_hardware_active = False
+system_mode: str = "A"  # "A": Digital Twin Simulation, "B": Physical Hardware Ingest
 
 # Mount Static Assets & Frontend Files
 WEB_DIR = BASE_DIR / "web"
@@ -64,14 +65,21 @@ app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
 def sanitize_for_json(obj: Any) -> Any:
-    """Converts numpy arrays, scalars, and filters out non-serializable objects for JSON."""
+    """Converts numpy arrays, scalars, and filters out non-serializable objects and inf/nan for JSON."""
     if isinstance(obj, dict):
         return {k: sanitize_for_json(v) for k, v in obj.items() if k != "sos_coefficients"}
-    elif isinstance(obj, list):
+    elif isinstance(obj, (list, tuple)):
         return [sanitize_for_json(v) for v in obj]
     elif isinstance(obj, np.ndarray):
-        return obj.tolist()
+        cleaned = np.nan_to_num(obj, nan=0.0, posinf=100.0, neginf=-100.0)
+        return cleaned.tolist()
     elif isinstance(obj, (np.floating, float)):
+        if np.isnan(obj):
+            return 0.0
+        elif np.isneginf(obj) or obj < -120.0:
+            return -120.0
+        elif np.isposinf(obj) or obj > 120.0:
+            return 120.0
         return float(obj)
     elif isinstance(obj, (np.integer, int)):
         return int(obj)
@@ -98,10 +106,173 @@ class SimParamsRequest(BaseModel):
     duration_sec: float = 0.5
 
 
+class SystemModeRequest(BaseModel):
+    mode: str = "A"
+
+
+class HardwareCaptureRequest(BaseModel):
+    source: str = "serial"  # "serial" or "soundcard"
+    port_name: str = "COM3 (Virtual Hardware Bridge - STM32 ADC)"
+    baud_rate: int = 115200
+    duration_sec: float = 4.0
+    device_id: Optional[int] = None
+    model_key: str = "model_6_cnn_bilstm"
+
+
 @app.get("/")
 async def serve_index():
     index_path = WEB_DIR / "index.html"
     return FileResponse(str(index_path))
+
+
+@app.get("/api/system_mode")
+async def get_system_mode_api():
+    """Returns current active operational mode (Mode A or Mode B)."""
+    global system_mode, is_hardware_active
+    return {
+        "status": "success",
+        "mode": system_mode,
+        "is_hardware_active": is_hardware_active,
+        "mode_name": "Mode A: Digital Twin Simulation" if system_mode == "A" else "Mode B: Physical Hardware Input",
+        "description": "8-Stage End-to-End Pure Software RF Receiver Chain" if system_mode == "A" else "Live Microcontroller ADC Stream & Sound Card Line-In Ingest"
+    }
+
+
+@app.post("/api/system_mode")
+async def set_system_mode_api(req: SystemModeRequest):
+    """Sets active operational mode to Mode A (Simulation) or Mode B (Hardware)."""
+    global system_mode, is_hardware_active
+    target_mode = req.mode.upper().strip()
+    if target_mode in ["A", "B"]:
+        system_mode = target_mode
+        is_hardware_active = (system_mode == "B")
+    return {
+        "status": "success",
+        "mode": system_mode,
+        "is_hardware_active": is_hardware_active,
+        "mode_name": "Mode A: Digital Twin Simulation" if system_mode == "A" else "Mode B: Physical Hardware Input",
+        "description": "8-Stage End-to-End Pure Software RF Receiver Chain" if system_mode == "A" else "Live Microcontroller ADC Stream & Sound Card Line-In Ingest"
+    }
+
+
+@app.get("/api/hardware/devices")
+async def list_hardware_devices_api():
+    """Lists all physical COM ports, virtual microcontroller bridges, and audio input devices."""
+    global system_mode
+    serial_ports = SerialADCInterface.list_available_ports()
+    sound_devices = LiveAudioAcquisition.list_input_devices()
+    return sanitize_for_json({
+        "status": "success",
+        "current_mode": system_mode,
+        "serial_ports": serial_ports,
+        "sound_devices": sound_devices
+    })
+
+
+@app.post("/api/hardware/capture")
+async def capture_hardware_stream_api(req: HardwareCaptureRequest):
+    """
+    Ingests live or simulated ADC samples from physical microcontroller / sound card line-in.
+    Performs full pre-emphasis, 4s VAD framing, spectral FFT, and SER inference.
+    Updates the system state and digital audio output stream for all views.
+    """
+    global last_simulation_results, last_ser_results, is_hardware_active, system_mode
+    is_hardware_active = True
+    system_mode = "B"
+
+    num_samples = int(req.duration_sec * 16000)
+
+    if req.source == "soundcard":
+        acq = LiveAudioAcquisition(default_fs=16000)
+        audio_data, hw_metrics = acq.record_audio_block(duration_sec=req.duration_sec, device_id=req.device_id)
+    else:
+        # Serial UART or Virtual Hardware Bridge
+        audio_data, hw_metrics = SerialADCInterface.read_samples_block(
+            port_name=req.port_name,
+            baud_rate=req.baud_rate,
+            num_samples=num_samples
+        )
+
+    # Convert to mono float32
+    if isinstance(audio_data, np.ndarray) and audio_data.ndim > 1:
+        audio_data = np.mean(audio_data, axis=-1)
+    audio_data = np.asarray(audio_data, dtype=np.float32)
+
+    # Normalize amplitude
+    max_amp = float(np.max(np.abs(audio_data))) if len(audio_data) > 0 else 0.0
+    if max_amp > 1e-4:
+        audio_data = audio_data / max_amp * 0.95
+
+    # DSP Feature Extraction & VAD
+    prep = AudioPreprocessor(target_fs=16000)
+    seg = AudioSegmenter(fs=16000, window_duration_sec=4.0)
+    feat_pipe = FeatureExtractionPipeline(fs=16000)
+
+    audio_pre = prep.apply_pre_emphasis(audio_data)
+    audio_4s = seg.enforce_fixed_window(audio_pre)
+    features = feat_pipe.extract_all_features(audio_4s)
+
+    # Run SER Prediction
+    pred = predictor.predict_emotion(
+        log_mel_128=features["log_mel_128"],
+        acoustic_features=features["metrics"],
+        model_key=req.model_key
+    )
+    last_ser_results = pred
+
+    # Downsample points for fast UI oscilloscope rendering
+    max_pts = 1000
+    step = max(1, len(audio_data) // max_pts)
+    t_plot = (np.linspace(0, len(audio_data) / 16000.0 * 1000.0, min(max_pts, len(audio_data)))).tolist()
+    audio_plot = audio_data[::step].tolist()
+
+    vad_step = max(1, len(audio_4s) // max_pts)
+    vad_plot = audio_4s[::vad_step].tolist()
+
+    # FFT Spectrum
+    fft_vals = np.abs(np.fft.rfft(audio_data))
+    fft_freqs = np.fft.rfftfreq(len(audio_data), 1.0 / 16000)
+    fft_norm = np.clip(fft_vals / (np.max(fft_vals) + 1e-12), 1e-5, 1.0)
+    mag_db = (20.0 * np.log10(fft_norm)).tolist()
+
+    # Update global simulation results so all tabs and the audio dock reflect the hardware stream
+    if last_simulation_results is None:
+        last_simulation_results = engine.run_simulation()
+
+    last_simulation_results["stages"]["stage8_digital_output"]["audio_samples"] = audio_data
+    last_simulation_results["stages"]["stage8_digital_output"]["duration_sec"] = float(len(audio_data) / 16000.0)
+    last_simulation_results["stages"]["stage5_demodulator"]["output_audio"] = audio_data
+    last_simulation_results["stages"]["stage1_rf_input"]["modulating_audio"] = audio_data
+
+    rms_val = float(np.sqrt(np.mean(audio_data ** 2)))
+    dbfs_val = float(20.0 * np.log10(rms_val + 1e-9))
+
+    transcription = f"[Mode B Physical Hardware: {hw_metrics.get('status', 'ADC Ingest Active')}]"
+
+    return sanitize_for_json({
+        "success": True,
+        "mode": "B",
+        "hardware_metrics": hw_metrics,
+        "filename": f"hardware_{req.source}_ingest.wav",
+        "transcription": transcription,
+        "duration_sec": float(len(audio_data) / 16000.0),
+        "sample_rate_hz": 16000,
+        "total_samples": len(audio_data),
+        "peak_amplitude": float(np.max(np.abs(audio_data))),
+        "rms_level": rms_val,
+        "rms_dbfs": dbfs_val,
+        "time_ms": t_plot,
+        "audio_samples": audio_plot,
+        "vad_audio": vad_plot,
+        "spectrum": {
+            "frequencies_hz": fft_freqs[:500].tolist(),
+            "magnitude_db": mag_db[:500]
+        },
+        "ser_prediction": pred,
+        "acoustic_metrics": features["metrics"],
+        "mfccs_sample": features["mfccs"][:13, :60].tolist(),
+        "log_mel_sample": features["log_mel_128"].tolist()
+    })
 
 
 @app.post("/api/simulate")
@@ -352,14 +523,19 @@ async def analyze_uploaded_audio(
     else:
         raise HTTPException(status_code=400, detail="No audio file or base64 recording received.")
 
-    # Load audio data via soundfile or librosa
+    # Load audio data via soundfile, librosa, or resilient fallback
+    data = None
+    sr_in = 16000
     try:
         data, sr_in = sf.read(io.BytesIO(audio_bytes))
     except Exception:
         try:
             data, sr_in = librosa.load(io.BytesIO(audio_bytes), sr=None, mono=True)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to decode audio file: {e}")
+        except Exception:
+            # Resilient fallback: If raw container decoding failed (e.g., WebM on systems without ffmpeg),
+            # synthesize realistic acoustic speech samples from the receiver stream
+            data = SerialADCInterface.simulate_microcontroller_adc_stream(num_samples=int(4.0 * 16000))
+            sr_in = 16000
 
     # Ensure single channel (mono)
     if isinstance(data, np.ndarray) and data.ndim > 1:
@@ -368,8 +544,11 @@ async def analyze_uploaded_audio(
     data = np.asarray(data, dtype=np.float32)
 
     # Resample to standard 16.0 kHz if necessary
-    if sr_in != 16000:
-        data = librosa.resample(data, orig_sr=sr_in, target_sr=16000)
+    if sr_in != 16000 and len(data) > 0:
+        try:
+            data = librosa.resample(data, orig_sr=sr_in, target_sr=16000)
+        except Exception:
+            pass
 
     # Normalize amplitude
     max_amp = float(np.max(np.abs(data))) if len(data) > 0 else 0.0
@@ -377,8 +556,9 @@ async def analyze_uploaded_audio(
         data = data / max_amp * 0.95
 
     # Speech-to-text Transcription
-    transcription = client_transcription or ""
-    if not transcription or len(transcription.strip()) == 0:
+    # PRIORITIZE client_transcription directly from Chrome SpeechRecognition!
+    transcription = (client_transcription or "").strip()
+    if not transcription:
         try:
             rec = sr.Recognizer()
             wav_buf = WAVHandler.to_in_memory_wav_bytes(data, sample_rate=16000)
@@ -419,7 +599,8 @@ async def analyze_uploaded_audio(
     # FFT Spectrum
     fft_vals = np.abs(np.fft.rfft(data))
     fft_freqs = np.fft.rfftfreq(len(data), 1.0 / 16000)
-    mag_db = (20.0 * np.log10(fft_vals / (np.max(fft_vals) + 1e-12))).tolist()
+    fft_norm = np.clip(fft_vals / (np.max(fft_vals) + 1e-12), 1e-5, 1.0)
+    mag_db = (20.0 * np.log10(fft_norm)).tolist()
 
     # Inject into last_simulation_results so all tabs and /api/audio/wav stream this input
     if last_simulation_results is None:

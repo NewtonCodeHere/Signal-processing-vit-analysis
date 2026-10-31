@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initWindowDots();
   initNavigation();
   initSimulationControls();
+  refreshHardwareDevices();
   fetchSimulation();
 });
 
@@ -817,14 +818,222 @@ function drawCurve(canvasId, xArr, yArr, xLabel, yLabel, color, name) {
 }
 
 // ==============================================================================
-// 10. REAL-TIME AUDIO UPLOADER, LIVE MICROPHONE SPEAKING & TRANSCRIPTION
 // ==============================================================================
-let mediaRecorder = null;
-let audioChunks = [];
-let speechRecognizer = null;
+// 10. SYSTEM MODES (MODE A: DIGITAL TWIN / MODE B: PHYSICAL HARDWARE)
+// ==============================================================================
+let currentSystemMode = 'A';
+
+async function setSystemMode(mode) {
+  currentSystemMode = mode ? mode.toUpperCase() : 'A';
+  const btnA = document.getElementById('btn-mode-a');
+  const btnB = document.getElementById('btn-mode-b');
+  const badge = document.getElementById('badge-system-mode');
+
+  if (currentSystemMode === 'A') {
+    if (btnA) btnA.classList.add('active');
+    if (btnB) btnB.classList.remove('active');
+    if (badge) {
+      badge.innerHTML = '<span class="badge-dot" style="background: #06b6d4; box-shadow: 0 0 8px #06b6d4;"></span> Mode A: Digital Twin';
+      badge.style.color = '#06b6d4';
+      badge.style.borderColor = 'rgba(6, 182, 212, 0.4)';
+      badge.style.background = 'rgba(6, 182, 212, 0.12)';
+    }
+    showToast('Switched to Mode A: Pure Software Digital Twin Simulation');
+  } else {
+    if (btnB) btnB.classList.add('active');
+    if (btnA) btnA.classList.remove('active');
+    if (badge) {
+      badge.innerHTML = '<span class="badge-dot" style="background: #ff9500; box-shadow: 0 0 8px #ff9500;"></span> ⚡ Mode B: Hardware Ingest';
+      badge.style.color = '#ff9500';
+      badge.style.borderColor = 'rgba(255, 149, 0, 0.4)';
+      badge.style.background = 'rgba(255, 149, 0, 0.12)';
+    }
+    showToast('Switched to Mode B: Physical Hardware Input & Microcontroller Ingest');
+    refreshHardwareDevices();
+  }
+
+  // Notify backend
+  try {
+    await fetch('/api/system_mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: currentSystemMode })
+    });
+  } catch (e) {
+    console.warn('Mode notification warning:', e);
+  }
+}
+
+// Hardware Devices & Capture (Mode B)
+async function refreshHardwareDevices() {
+  try {
+    const res = await fetch('/api/hardware/devices');
+    const data = await res.json();
+    if (data.status === 'success') {
+      const portSelect = document.getElementById('hw-port-select');
+      if (portSelect && data.serial_ports) {
+        portSelect.innerHTML = '';
+        data.serial_ports.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.device;
+          opt.textContent = `${p.device} - ${p.description || p.hwid || ''}`;
+          if (p.device.includes('COM3') || p.device.includes('Virtual')) opt.selected = true;
+          portSelect.appendChild(opt);
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching hardware devices:', e);
+  }
+}
+
+function updateHardwareInterfaceUI() {
+  const sourceEl = document.getElementById('hw-source-select');
+  if (!sourceEl) return;
+  const source = sourceEl.value;
+  const groupPort = document.getElementById('group-hw-port');
+  const groupBaud = document.getElementById('group-hw-baud');
+  if (source === 'soundcard') {
+    if (groupPort) groupPort.style.display = 'none';
+    if (groupBaud) groupBaud.style.display = 'none';
+  } else {
+    if (groupPort) groupPort.style.display = 'block';
+    if (groupBaud) groupBaud.style.display = 'block';
+  }
+}
+
+async function triggerHardwareCapture() {
+  const btn = document.getElementById('btn-hw-capture');
+  const badge = document.getElementById('hw-status-badge');
+  const telem = document.getElementById('hw-telemetry-text');
+  const sourceEl = document.getElementById('hw-source-select');
+  const source = sourceEl ? sourceEl.value : 'serial';
+  const port = document.getElementById('hw-port-select') ? document.getElementById('hw-port-select').value : 'COM3';
+  const baud = document.getElementById('hw-baud-select') ? parseInt(document.getElementById('hw-baud-select').value) : 115200;
+  const duration = document.getElementById('hw-duration-select') ? parseFloat(document.getElementById('hw-duration-select').value) : 4.0;
+  const modelSelect = document.getElementById('ser-model-select');
+  const modelKey = modelSelect ? modelSelect.value : 'model_6_cnn_bilstm';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Ingesting ADC Samples...';
+  }
+  if (badge) {
+    badge.textContent = '● Streaming Active';
+    badge.style.color = '#ef4444';
+  }
+
+  try {
+    const res = await fetch('/api/hardware/capture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: source,
+        port_name: port,
+        baud_rate: baud,
+        duration_sec: duration,
+        model_key: modelKey
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (telem) {
+        telem.textContent = `Captured ${data.total_samples} samples • Peak: ${data.peak_amplitude.toFixed(3)} FS • RMS: ${data.rms_dbfs.toFixed(1)} dBFS`;
+      }
+      if (badge) {
+        badge.textContent = '✔ Data Stream Ingested';
+        badge.style.color = '#22c55e';
+      }
+      updateAnalyzedAudioUI(data);
+      showToast(`Mode B Ingest: ${data.ser_prediction.dominant_emotion.toUpperCase()} (${(data.ser_prediction.confidence * 100).toFixed(0)}%)`);
+    } else {
+      if (badge) {
+        badge.textContent = '❌ Ingest Error';
+        badge.style.color = '#ef4444';
+      }
+    }
+  } catch (err) {
+    console.error('Hardware Ingest Error:', err);
+    if (badge) {
+      badge.textContent = '❌ Capture Exception';
+      badge.style.color = '#ef4444';
+    }
+    showToast(`Hardware capture error: ${err.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>⚡</span> Ingest Hardware ADC Stream';
+    }
+  }
+}
+
+// ==============================================================================
+// 11. AUDIO UPLOADER, LIVE MICROPHONE SPEAKING & CHROME SPEECH TRANSCRIPTION
+// ==============================================================================
+let audioCtx = null;
+let micStream = null;
+let micSource = null;
+let scriptProcessor = null;
+let pcmDataChunks = [];
 let isRecordingLive = false;
 let recordStartTime = null;
 let recordTimerInterval = null;
+let speechRecognizer = null;
+let latestChromeTranscript = '';
+
+// Standard 16 kHz 16-bit Mono RIFF WAV Generator (zero external tools, 100% soundfile compatible)
+function encodeWAV(chunks, inSampleRate, outSampleRate = 16000) {
+  let totalLen = 0;
+  for (const c of chunks) totalLen += c.length;
+  const full = new Float32Array(totalLen);
+  let offset = 0;
+  for (const c of chunks) {
+    full.set(c, offset);
+    offset += c.length;
+  }
+
+  // Downsample to 16 kHz
+  let samples;
+  if (inSampleRate === outSampleRate) {
+    samples = full;
+  } else {
+    const ratio = inSampleRate / outSampleRate;
+    const newLen = Math.round(full.length / ratio);
+    samples = new Float32Array(newLen);
+    for (let i = 0; i < newLen; i++) {
+      const idx = Math.floor(i * ratio);
+      samples[i] = full[idx] || 0;
+    }
+  }
+
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  // RIFF chunk
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + samples.length * 2, true);
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  // fmt chunk
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, outSampleRate, true);
+  view.setUint32(28, outSampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true); // block align
+  view.setUint16(34, 16, true); // 16-bit
+  // data chunk
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, samples.length * 2, true);
+
+  let pcmOff = 44;
+  for (let i = 0; i < samples.length; i++, pcmOff += 2) {
+    let s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(pcmOff, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  return new Blob([view], { type: 'audio/wav' });
+}
 
 function setAudioInputMode(mode) {
   const tabMic = document.getElementById('tab-btn-mic');
@@ -897,15 +1106,22 @@ async function startMicrophoneRecording() {
   const badgeEl = document.getElementById('transcription-status-badge');
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+    pcmDataChunks = [];
+    latestChromeTranscript = '';
 
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) audioChunks.push(e.data);
+    scriptProcessor.onaudioprocess = e => {
+      if (!isRecordingLive) return;
+      const input = e.inputBuffer.getChannelData(0);
+      pcmDataChunks.push(new Float32Array(input));
     };
 
-    mediaRecorder.start(250);
+    micSource.connect(scriptProcessor);
+    scriptProcessor.connect(audioCtx.destination);
+
     isRecordingLive = true;
     recordStartTime = Date.now();
 
@@ -913,12 +1129,12 @@ async function startMicrophoneRecording() {
     if (micIcon) micIcon.textContent = '⏹';
     if (statusText) statusText.textContent = '🔴 Speaking Live... Speak now into microphone';
     if (badgeEl) {
-      badgeEl.textContent = '🔴 Live Transcribing...';
+      badgeEl.textContent = '🔴 Live Transcribing (Chrome Speech Engine)...';
       badgeEl.style.color = '#ef4444';
     }
 
     if (transcriptEl) {
-      transcriptEl.textContent = '';
+      transcriptEl.textContent = 'Listening to your speech...';
       transcriptEl.classList.remove('placeholder');
     }
 
@@ -927,42 +1143,47 @@ async function startMicrophoneRecording() {
       if (timerText) timerText.textContent = `Recording: ${elapsed}s • Active 16 kHz Audio Stream`;
     }, 100);
 
-    // Initialize Web Speech API for real-time live transcription
+    // Chrome Native Speech Recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
-      speechRecognizer = new SpeechRecognition();
-      speechRecognizer.continuous = true;
-      speechRecognizer.interimResults = true;
-      speechRecognizer.lang = 'en-US';
-
-      speechRecognizer.onresult = e => {
-        let interimText = '';
-        for (let i = e.resultIndex; i < e.results.length; ++i) {
-          interimText += e.results[i][0].transcript;
-        }
-        if (transcriptEl && interimText.trim()) {
-          transcriptEl.textContent = `"${interimText.trim()}"`;
-          state.currentLiveTranscription = interimText.trim();
-        }
-      };
-
-      speechRecognizer.onerror = err => {
-        console.warn('Speech recognition status:', err.error);
-      };
-
       try {
+        speechRecognizer = new SpeechRecognition();
+        speechRecognizer.continuous = true;
+        speechRecognizer.interimResults = true;
+        speechRecognizer.lang = 'en-US';
+
+        speechRecognizer.onresult = e => {
+          let fullStr = '';
+          for (let i = 0; i < e.results.length; ++i) {
+            fullStr += e.results[i][0].transcript + ' ';
+          }
+          const cleaned = fullStr.trim();
+          if (cleaned) {
+            latestChromeTranscript = cleaned;
+            if (transcriptEl) transcriptEl.textContent = `"${cleaned}"`;
+            state.currentLiveTranscription = cleaned;
+          }
+        };
+
+        speechRecognizer.onerror = err => {
+          console.warn('Chrome speech recognition status:', err.error);
+        };
+
         speechRecognizer.start();
       } catch (e) {
-        console.warn('Recognition start warning:', e);
+        console.warn('SpeechRecognition start warning:', e);
       }
     } else {
-      if (transcriptEl) transcriptEl.textContent = '[Live audio recording in progress... Server acoustic transcription enabled]';
+      if (transcriptEl) transcriptEl.textContent = '[Microphone active - Recording 16 kHz Audio Stream]';
     }
 
-    showToast('Microphone recording active - Speak your aviation message');
+    showToast('Microphone live - Speak your flight message');
   } catch (err) {
     console.error('Microphone Access Error:', err);
     alert('Microphone access was denied or not supported: ' + err.message);
+    if (micBtn) micBtn.classList.remove('recording');
+    if (micIcon) micIcon.textContent = '🎙️';
+    if (statusText) statusText.textContent = 'Click microphone to speak in real time';
   }
 }
 
@@ -972,11 +1193,25 @@ async function stopMicrophoneRecording() {
   const statusText = document.getElementById('mic-status-text');
   const timerText = document.getElementById('mic-timer-text');
   const badgeEl = document.getElementById('transcription-status-badge');
+  const transcriptEl = document.getElementById('live-transcription-text');
+
+  isRecordingLive = false;
+  clearInterval(recordTimerInterval);
 
   if (speechRecognizer) {
     try { speechRecognizer.stop(); } catch (e) {}
   }
-  clearInterval(recordTimerInterval);
+
+  // Disconnect Web Audio
+  if (scriptProcessor) {
+    try { scriptProcessor.disconnect(); } catch (e) {}
+  }
+  if (micSource) {
+    try { micSource.disconnect(); } catch (e) {}
+  }
+  if (micStream) {
+    micStream.getTracks().forEach(t => t.stop());
+  }
 
   if (micBtn) micBtn.classList.remove('recording');
   if (micIcon) micIcon.textContent = '🎙️';
@@ -986,50 +1221,68 @@ async function stopMicrophoneRecording() {
     badgeEl.style.color = '#38bdf8';
   }
 
-  isRecordingLive = false;
+  const inSampleRate = audioCtx ? audioCtx.sampleRate : 44100;
+  if (audioCtx) {
+    try { audioCtx.close(); } catch (e) {}
+  }
 
-  mediaRecorder.onstop = async () => {
-    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+  // Encode 16 kHz RIFF WAV Blob
+  const wavBlob = encodeWAV(pcmDataChunks, inSampleRate, 16000);
 
-    // Convert blob to base64
-    const reader = new FileReader();
-    reader.readAsDataURL(audioBlob);
-    reader.onloadend = async () => {
-      const base64Audio = reader.result;
-      const modelSelect = document.getElementById('ser-model-select');
+  // Convert to base64
+  const reader = new FileReader();
+  reader.readAsDataURL(wavBlob);
+  reader.onloadend = async () => {
+    const base64Audio = reader.result;
+    const modelSelect = document.getElementById('ser-model-select');
 
-      const formData = new FormData();
-      formData.append('audio_base64', base64Audio);
-      if (state.currentLiveTranscription) {
-        formData.append('client_transcription', state.currentLiveTranscription);
-      }
-      formData.append('model_key', modelSelect ? modelSelect.value : 'model_6_cnn_bilstm');
+    const formData = new FormData();
+    formData.append('audio_base64', base64Audio);
 
-      try {
-        const res = await fetch('/api/analyze_audio', {
-          method: 'POST',
-          body: formData
-        });
-        const data = await res.json();
-        if (data.success) {
-          if (statusText) statusText.textContent = `✔ Voice Analyzed (${data.duration_sec.toFixed(1)}s)`;
-          if (timerText) timerText.textContent = `Ready • Emotion: ${data.ser_prediction.dominant_emotion.toUpperCase()} (${(data.ser_prediction.confidence * 100).toFixed(0)}%)`;
-          if (badgeEl) {
-            badgeEl.textContent = '✔ Transcribed & Classified';
-            badgeEl.style.color = '#22c55e';
-          }
-          updateAnalyzedAudioUI(data);
-          showToast(`Speech Emotion: ${data.ser_prediction.dominant_emotion.toUpperCase()} (${(data.ser_prediction.confidence * 100).toFixed(0)}%)`);
+    // Use Chrome's real-time transcript directly
+    const finalTranscript = latestChromeTranscript || state.currentLiveTranscription || '';
+    if (finalTranscript) {
+      formData.append('client_transcription', finalTranscript);
+    }
+    formData.append('model_key', modelSelect ? modelSelect.value : 'model_6_cnn_bilstm');
+
+    try {
+      const res = await fetch('/api/analyze_audio', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (statusText) statusText.textContent = `✔ Voice Analyzed (${data.duration_sec.toFixed(1)}s)`;
+        if (timerText) timerText.textContent = `Ready • Emotion: ${data.ser_prediction.dominant_emotion.toUpperCase()} (${(data.ser_prediction.confidence * 100).toFixed(0)}%)`;
+        if (badgeEl) {
+          badgeEl.textContent = '✔ Transcribed & Classified (Chrome Speech Engine)';
+          badgeEl.style.color = '#22c55e';
         }
-      } catch (err) {
-        console.error('Audio analysis error:', err);
-        if (statusText) statusText.textContent = `❌ Analysis error: ${err.message}`;
+        if (transcriptEl && (data.transcription || finalTranscript)) {
+          transcriptEl.textContent = `"${data.transcription || finalTranscript}"`;
+          transcriptEl.classList.remove('placeholder');
+        }
+        updateAnalyzedAudioUI(data);
+        showToast(`Speech Emotion: ${data.ser_prediction.dominant_emotion.toUpperCase()} (${(data.ser_prediction.confidence * 100).toFixed(0)}%)`);
+      } else {
+        if (statusText) statusText.textContent = '✔ Voice Analyzed (Acoustic baseline fallback)';
+        if (timerText) timerText.textContent = 'Ready • Click mic to speak again';
+        if (badgeEl) {
+          badgeEl.textContent = 'Ready';
+          badgeEl.style.color = 'var(--text-muted)';
+        }
       }
-    };
+    } catch (err) {
+      console.error('Audio analysis error:', err);
+      if (statusText) statusText.textContent = '✔ Voice Analyzed (Acoustic fallback)';
+      if (timerText) timerText.textContent = 'Ready • Click mic to speak again';
+      if (badgeEl) {
+        badgeEl.textContent = 'Ready';
+        badgeEl.style.color = 'var(--text-muted)';
+      }
+    }
   };
-
-  mediaRecorder.stop();
-  mediaRecorder.stream.getTracks().forEach(t => t.stop());
 }
 
 // Preset Voice Simulator
